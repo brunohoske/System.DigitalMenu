@@ -1,0 +1,57 @@
+﻿@page "/"
+@using Client
+@rendermode InteractiveServer
+@inject NavigationManager nav
+
+<PageTitle>Home</PageTitle>
+
+
+@code {
+    List<Order> orders = new List<Order>();
+    SoftwareClient client = new SoftwareClient();
+
+    protected override async Task OnInitializedAsync()
+    {
+        orders = await client.GetOrder();
+    }
+
+    public async Task CompleteOrder(Order order)
+    {
+        await client.CompleteOrder(order);
+        nav.Refresh(true);
+    }
+}
+
+<div class="title">
+    <h1>PEDIDOS PENDENTES</h1>
+</div>
+
+<div class="orders-container">
+    @for (int i = 0; i < orders.Count; i++)
+    {
+        var order = orders[i];
+        <div class="order-card">
+            <div class="order-header">
+                <h2>Pedido #@order.Id</h2>
+                <p><strong>Mesa:</strong> @order.Table.TableNumber</p>
+                <p><strong>Horário:</strong> @order.Date.ToShortTimeString()</p>
+            </div>
+
+            <div class="products-list">
+                @for (int c = 0; c < order.Products.Count; c++)
+                {
+                    <div class="product-item">
+                        <p><strong>@order.Products[c].Name</strong></p>
+                        <p class="description">Observações: @order.Products[c].Description</p>
+                    </div>
+                }
+            </div>
+            <button class="complete-button" @onclick="()=>CompleteOrder(order)">Finalizar Pedido</button>
+        </div>
+    }
+
+</div>
+
+
+
+

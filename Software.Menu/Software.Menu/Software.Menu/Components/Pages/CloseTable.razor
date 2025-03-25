@@ -1,0 +1,127 @@
+﻿@page "/Payment/{Cnpj}/{TableNumber}/Close"
+@rendermode InteractiveServer
+@inject IJSRuntime js
+@code {
+    [Parameter]
+    public string Cnpj { get; set; } = null!;
+    [Parameter]
+    public string TableNumber { get; set; } = null!;
+
+    public Table Table { get; set; }
+
+
+    public MenuClient _client;
+    public Coupon Coupon { get; set; }
+    public int Done = 2;
+    public double Total = 0.00f;
+    public string CodeCoupon { get; set; }
+    public bool CouponApplied { get; set; }
+
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        List<Order> Orders = new List<Order>();
+        _client = new MenuClient($"{Cnpj}");
+        Orders = await _client.GetOrders(int.Parse(TableNumber));
+
+        foreach (var order in Orders)
+        {
+            Total += order.Value;
+        }
+
+    }
+
+    public async void CloseCheck()
+    {
+        if( await checkClient.CloseCheck(new Table() { TableNumber = int.Parse(TableNumber), Store = new Company("MCDONALDS") { Cnpj = Cnpj } }))
+        {
+            Done = 1;
+        }
+        else
+        {
+            Done = 0;
+        }
+        StateHasChanged();
+
+    }
+
+    public async void SearchCupom()
+    {
+        Coupon = await _client.SearchCoupon(CodeCoupon);
+        if (Coupon != null && Coupon.Active && !CouponApplied)
+        {
+            js.InvokeVoidAsync("alert", "Cupom aplicado");
+            Total -= (Total * Coupon.Discount) / 100 ;
+            CouponApplied = true;
+            StateHasChanged();
+        }
+        else if (CouponApplied)
+        {
+            js.InvokeVoidAsync("alert", "Já foi aplicado um cupom para este pedido");
+        }
+        else
+        {
+            js.InvokeVoidAsync("alert", "Cupom não encontrado");
+        }
+        StateHasChanged();
+    }
+
+
+}
+
+<div class="page-order">
+    <div class="order-container">
+        <h2 class="title">Fechar Pedido</h2>
+
+        <div class="order-info">
+            <p class="section-label">Comanda:</p>
+            <div class="input-group">
+                <select disabled class="form-select">
+                    <option selected>@TableNumber</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="coupon-section">
+            <p class="section-label">Aplicar Cupom:</p>
+            <div class="textInputWrapper">
+                <input @bind-value=CodeCoupon placeholder="Digite o código do cupom" type="text" class="textInput">
+            </div>
+            <button class="apply-btn" @onclick="SearchCupom">Aplicar</button>
+        </div>
+
+        <div class="total-section">
+            <h3 class="total-text">Total: R$ @Total.ToString("F2")</h3>
+        </div>
+
+        <div class="actions">
+            <button class="finalize-btn" @onclick="CloseCheck">Finalizar Pedido</button>
+        </div>
+        <div style="margin-left: 40%;">
+            <img src="/Images/qrcode_pix.jpg" style=" width:30%; justify-self:center">
+        </div>
+    </div>
+
+
+
+    <!-- Mensagem de Sucesso -->
+    <div class="card" id="@(Done == 1 ? "show" : "hide")">
+        <div class="icon-container">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="currentColor" class="icon">
+                <path d="M256 48a208 208 0 1 1 0 416 208 208 0 1 1 0-416zm0 464A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM369 209c9.4-9.4 9.4-24.6 0-33.9s-24.6-9.4-33.9 0l-111 111-47-47c-9.4-9.4-24.6-9.4-33.9 0s-9.4 24.6 0 33.9l64 64c9.4 9.4 24.6 9.4 33.9 0L369 209z"></path>
+            </svg>
+        </div>
+        <p class="message-text">Pedido finalizado com sucesso!</p>
+    </div>
+
+    <!-- Mensagem de Erro -->
+    <div class="card_error" id="@(Done == 0 ? "show" : "hide")">
+        <div class="icon-container_error">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="currentColor" class="icon_error">
+                <path d="M256 48a208 208 0 1 1 0 416 208 208 0 1 1 0-416zm0 464A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM175 175c-9.4 9.4-9.4 24.6 0 33.9l47 47-47 47c-9.4 9.4-9.4 24.6 0 33.9s24.6 9.4 33.9 0l47-47 47 47c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-47-47 47-47c9.4-9.4 9.4-24.6 0-33.9s-24.6-9.4-33.9 0l-47 47-47-47c-9.4-9.4-24.6-9.4-33.9 0z"></path>
+            </svg>
+        </div>
+        <p class="message-text_error">Erro ao finalizar o pedido. Tente novamente.</p>
+    </div>
+</div>

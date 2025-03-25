@@ -1,5 +1,6 @@
 ﻿@using System.Net.Http
 @using System.Net.Http.Json
+@using AutoMapper
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.AspNetCore.Components.Routing
 @using Microsoft.AspNetCore.Components.Web
@@ -9,3 +10,27 @@
 @using Software.Menu
 @using Software.Menu.Client
 @using Software.Menu.Components
+@using Software.Menu.Models
+@using Software.Menu.Models.ViewModels
+@using Software.Menu.Services
+@using Software.Menu.DTOs;
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+@using System.Text.Json
+@using System.Text.Json.Serialization.Metadata
+
+@inject IJSRuntime js
+@inject Blazored.SessionStorage.ISessionStorageService sessionStorageBlazored
+@inject ProtectedSessionStorage SessionStorage
+@inject MenuClient menuClient
+@inject IngredientClient ingredientClient
+@inject ProductClient productClient
+@inject ComboClient comboClient
+@inject ProductService productService
+@inject CompanyClient companyClient
+@inject CheckClient checkClient
+@inject OrderClient orderClient
+@inject NavigationManager nav
+@inject MenuService menuService
+@inject CartService _cartService
+
+@inject IMapper mapper

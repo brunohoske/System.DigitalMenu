@@ -1,184 +1,553 @@
-﻿@using Models;
-@using DAL
+﻿@using Software.Menu.Models;
 @using System.Text.Json;
+@using System.Text
 @inject HttpClient _httpClient
+@inject NavigationManager nav
 @rendermode InteractiveServer
 
-@page "/{CompanyName}/CARDAPIO/M{Comanda}"
+@page "/{Cnpj}/CARDAPIO/M{Comanda}"
 
 @code {
+    public MenuClient _client;
+    public CompanyClient _companyClient;
+
 
     public Menu menu { get; set; }
     [Parameter]
     public string Comanda { get; set; }
     [Parameter]
-    public string CompanyName { get; set; }
+    public string Cnpj { get; set; }
 
-    public List<Product> Produtos { get; set; }
+    Company Store = new Company();
 
-    public List<Product> ProductsInOrder = new List<Product>();
-    public List<Order> OrdersInCheck = new List<Order>();
+    string cartToken;
 
-    public double total;
-    public async Task CarregarProdutosAsync()
+    private List<Product> Produtos = new List<Product>();
+
+    private List<ItemCart> Cart = new List<ItemCart>();
+    private List<Order> OrdersInCheck = new List<Order>();
+    private List<Category> Categories = new List<Category>();
+
+    private bool _isFirstRender = true;
+    private double total;
+    private double totalGeral;
+
+    private async Task CarregarProdutosAsync()
     {
         Produtos = await GetProducts();
     }
-
-    private void AddProductToOrder(Product produto)
+    private async Task GetCategories()
     {
-        ProductsInOrder.Add(produto);
+
+        Categories = await _client.GetCategories();
+        Categories.Insert(0, new Category() { Name = "Todos os produtos", IsDisplay = 1, Products = Produtos, Store = Store });
     }
-
-    protected override async Task OnInitializedAsync()
+    private async Task AddProductToOrder(Product product)
     {
-        base.OnInitialized();
-
-        await CarregarProdutosAsync();
-        OrdersInCheck = await GetOrders();
-    DALCompany dc = new DALCompany();
-        @if (dc.CheckExist(CompanyName))
+        if (product.Ingredients.Any() && product is not Combo)
         {
-            menu = new Menu() { Company = dc.GetCompanyPerName(CompanyName) };
+            await GoToProductPage(product.Id);
+            return;            
+        }
+        if (product is Combo)
+        {
+            await GoToComboPage(product.Id);
+            return;            
+        }
+
+        var item = new ItemCart()
+            {
+                Product = product,
+                Quantity = 1,
+                Notes = new List<string>(),
+                TableNumber = int.Parse(Comanda),
+                Cnpj = this.Cnpj
+            };
+
+
+        var index = Cart.FindIndex(item => item.Product.Id == product.Id);
+        if (index != -1)
+        {
+            Cart[index].Quantity++;
+            await js.InvokeVoidAsync("showNotification", $"{item.Product.Name} Adicionado com sucesso!", "success");
         }
         else
         {
-            menu = new Menu();
-        }
-    }
-
-}
-
-@code{
-    [SupplyParameterFromForm]
-    public Order Order {get;set;}
-}
-<PageTitle>Home</PageTitle>
-
-<div class="rest-banner">
-    <img src="@(CompanyName.ToLower() == "mcdonalds" ? @"Images\McDonalds-Banner.png" : @"Images\BurgerKing-Banner.jpg")" class="rest-banner">
-</div>
-
-<h5>@menu.Company.Name - CARDAPIO - COMANDA #1</h5>
-
-
-
-<section id="products1">
-
-    
-    @foreach(var item in Produtos)
-    {
-        <div class="container-ger">
-            <div class="container-item">
-                <div class="imagem"><img src="/Images/hamburguer1.png" alt=""></div>
-                <div class="item">
-                    <div class="desc-img">
-                        <h3>Nome:@item.Name</h3>
-                        <h3>Descrição:@item.Description</h3>
-                        <h3>Valor:@item.Value</h3>
-                        <button @onclick="() => AddProductToOrder(item)">Adicionar</button> 
-                    </div>
-                </div>
-            </div>
-        </div>
-
-    }
-
-</section>
-
-
-<section class="cart">
-    
-    <div class="cartpos">
-        <div class="itemCart">
-            <h1>Carrinho</h1>
-        </div>
-
-        
-        @if(ProductsInOrder.Count != 0 && ProductsInOrder != null)
-        {
-            @foreach (var item in ProductsInOrder)
+            Cart.Add(item);
+            if (Cart.Contains(item))
             {
-                <div class="itemCart">
-                    <h2>1 -</h2>
-                    <h3>Produto: @item.Name</h3>
-                    <h3>Valor: @item.Value</h3>
-                    <button @onclick="() => ProductsInOrder.Remove(item)">Remover</button>
-                    
-                </div>
+                await js.InvokeVoidAsync("showNotification", $"{item.Product.Name} Adicionado com sucesso!", "success");
             }
+            else
+            {
+                await js.InvokeVoidAsync("showNotification", $"{item.Product.Name} não foi adicionado! Erro ocorrido","error");
+            }
+
+            await AddToCart(item);
         }
-        
-        <div class="divbtnConcluir" @onclick="() => SubmitOrder(ProductsInOrder)"><button class="btnConcluir">Concluir</button></div>
-    </div>
-    
-</section>
-
-<section class="check">
-
-    <h2>Total dos pedidos:</h2>
-    
-    @for (int i = 0; i < OrdersInCheck.Count; i++)
+    }
+    private void CalculateTotalGeral()
     {
-        @for (int c = 0; c < OrdersInCheck[i].Products.Count; c++)
+        totalGeral = OrdersInCheck.Sum(order => order.Value);
+    }
+    private void CloseOrder()
+    {
+        nav.NavigateTo($"Payment/{menu.Company.Cnpj}/{Comanda}/Close");
+    }
+    private void RemoveProductFromOrder(ItemCart item)
+    {
+        // ProductsInOrder.Remove(product);
+        Cart.Remove(item);
+        _cartService.RemoveFromCart(cartToken, item);
+        if (!Cart.Any())
         {
-        <div class="container">
-
-            <div class="item">
-
-                <h3> Pedido: @OrdersInCheck[i].Products[c].Name </h3>
-                <h3> Valor: @OrdersInCheck[i].Products[c].Value</h3>
-            </div>
-
-        </div>
+            _cartService.ClearCart(cartToken);
         }
-        
     }
-    @foreach (var item in OrdersInCheck)
+    private async Task GoToProductPage(int id)
     {
-        total += item.Value;
+        nav.NavigateTo($"{menu.Company.Cnpj}/Product/{id}/{Comanda}");
+        //await SessionStorage.SetAsync("cart", JsonSerializer.Serialize(Cart));
+        // await SetSessionCart(Cart);
     }
-    <h3>TOTAL: @total</h3>
-</section>
 
-@code{
+    private async Task GoToComboPage(int id)
+    {
+        nav.NavigateTo($"{menu.Company.Cnpj}/Combo/{id}/{Comanda}");
+        // await SessionStorage.SetAsync("cart", JsonSerializer.Serialize(Cart));
+        // await SetSessionCart(Cart);
+    }
 
-    private async Task SubmitOrder(List<Product> p)
+
+    private async Task GetCartToken()
     {
         try
         {
-            double total = 0;
-            foreach (var item in p)
-            {
-                total += item.Value;
-            }
-
-            Order order = new Order()
-                {
-                    Id = await GetOrderNumber(),
-                    Products = p,
-                    Date = System.DateTime.Now,
-                    Store = new Company("McDonalds") { cnpj = "42591651000143" },
-                    Table = new Table() { TableNumber = int.Parse(Comanda), Store = new Company("McDonalds") { cnpj = "42591651000143" } },
-                    Value = total
-
-                };
-
-            string jsonBody = System.Text.Json.JsonSerializer.Serialize(order);
-            HttpContent httpContent = new StringContent(jsonBody, System.Text.Encoding.UTF8, "application/json");
-
-            HttpResponseMessage response = await _httpClient.PostAsync("Orders", httpContent);
-            ProductsInOrder.Clear();
-
-
+            cartToken = await menuService.GetCartToken(sessionStorageBlazored,int.Parse(Comanda),Cnpj);
+            Cart = _cartService.GetCart(cartToken);
 
         }
         catch (Exception ex)
         {
-            Console.WriteLine("Erro ao enviar pedido"+ex.Message);
+            Console.WriteLine("Erro ao ler o Session com token" + ex);
+        }
+
+    }
+
+    private async Task AddToCart(ItemCart item)
+    {
+        if (cartToken == null || cartToken == string.Empty)
+        {
+            cartToken = Guid.NewGuid().ToString();
+        }
+        _cartService.AddToCart(cartToken, item);
+        await menuService.SetCartToken(cartToken, sessionStorageBlazored, int.Parse(Comanda), Cnpj);
+
+
+    }
+    protected override async Task OnInitializedAsync()
+    {
+        base.OnInitialized();
+        try
+        {
+            _client = new MenuClient($"{Cnpj}");
+            _companyClient = new CompanyClient($"{Cnpj}");
+            checkClient = new CheckClient($"{Cnpj}");
+            orderClient = new OrderClient($"{Cnpj}", mapper);
+
+            await CarregarProdutosAsync();
+            Store = await _companyClient.GetCompanyFromCnpj(Cnpj);
+            if(Store == null)
+            {
+                nav.NavigateTo("/404", true);
+            }
+            OrdersInCheck = await GetOrders();
+
+            await GetCategories();
+
+
+            @if (Store.Name != string.Empty)
+            {
+                menu = new Menu() { Company = Store };
+            }
+            else
+            {
+                menu = new Menu();
+            }
+            CalculateTotalGeral();
+        }
+        catch(Exception ex)
+        {
+            Console.WriteLine("Erro na inicialização da Home" + ex);
+            throw;
+        }
+
+
+    }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            if (!await checkClient.CheckExists(int.Parse(Comanda)))
+            {
+                nav.NavigateTo("/404", true);
+            }
+
+
+            await GetCartToken();         
+            
+            _isFirstRender = false;
+            StateHasChanged();
         }
     }
 
+    private async Task IncrementItem(ItemCart item)
+    {
+        item.Quantity++; StateHasChanged();
+    }
+    private async Task DecrementItem(ItemCart item)
+    {
+        if(item.Quantity == 1)
+        {
+            RemoveProductFromOrder(item);
+        }
+        else
+        {
+            item.Quantity--; StateHasChanged();
+        }
+    }
+
+
+}
+
+<style>
+    .banner{
+        background: url('@menu.Company.Banner') no-repeat center center;
+        background-size: cover;
+    }
+  
+</style>
+
+<PageTitle>Home</PageTitle>
+
+
+
+<body>
+    <div class="banner">
+        <div class="overlay"></div>
+        <div class="content">
+            <img src="@Store.Image" alt="Logo" class="logo mb-2">
+            <h2>@menu.Company.Name</h2>
+            <div class="stars">
+                &#9733; &#9733; &#9733; &#9733; &#9733;
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+
+<div class="category-menu">
+        <div class="container-fluid" style="margin-bottom: 50px;">
+        <div class="category-container container" style="box-shadow: none !important;background-color: transparent;padding: 8px; ">
+            @foreach(var category in Categories)    
+            {
+                if(category.IsDisplay == 1)
+                {
+                    <a style="text-decoration:none;color: black;" href="@($" /{Cnpj}/CARDAPIO/M{Comanda}/#{category.Name.Replace(" ", "-")}")"> <div class="category-item">@category.Name</div></a>
+                }
+            }
+            </div>
+        </div>
+    </div>
+
+
+
+
+
+
+
+
+<h2 class="menu-title">@menu.Company.Name - Cardápio</h2>
+
+<section id="menu" class="menu-section">
+    
+    @foreach (var category in Categories)
+    {
+        @if(category.IsDisplay == 1)
+        {
+            <div class="product-category" id="@category.Name.Replace(" ", "-")">
+                <h3 class="category-title">@category.Name</h3>
+                <div class="product-list">
+                    @foreach (var product in category.Products)
+                    {
+                        <div class="product-card"  @onclick="()=> product is Combo ? GoToComboPage(product.Id) : GoToProductPage(product.Id)">
+                            <button tabindex="0" role="button" aria-live="polite" aria-busy="false" aria-atomic="true" aria-disabled="false" class="quick-add  d-flex align-items-center" @onclick:stopPropagation="product.Ingredients.Count <= 0 || product is Combo"
+                                    @onclick="() => AddProductToOrder(product)">
+
+                                <svg style="fill: #00a680;" viewBox="0 0 16 16" width="1em" height="1em" role="presentation" focusable="false" aria-hidden="true">
+                                    <path d="M14.125 7.344H8.656V1.875H7.344v5.469H1.875v1.312h5.469v5.469h1.312V8.656h5.469V7.344z"></path>
+                                </svg>
+                            </button>
+                            <img src="@product.Image" alt="Product Image" class="product-image" />
+                            <div class="product-details">
+                                <h4 class="product-name">@product.Name</h4>
+                                <p class="product-description">@product.Description</p>
+                                <div class="product-bottom">
+                                    @if(product.GetPrice() == product.Value)
+                                    {
+                                        <span class="product-price">R$ @product.GetPrice().ToString("F2")</span>
+                                    }
+                                    else
+                                    {
+                                        <div style="display: flex;flex-direction: column;/*! font-size: 10px; */">
+                                            <span class="product-price" style="text-decoration: line-through;font-size: 12px;color: gray;">R$ @product.Value.ToString("F2")</span>
+                                            <span class="product-price">R$ @product.GetPrice().ToString("F2")</span>
+                                        </div>
+                                    }
+
+
+                                    
+                                    @* <button class="add-to-cart">Adicionar</button> *@
+                                </div>
+                            </div>
+                        </div>
+     
+                    }
+
+                    
+                </div>
+            </div>
+        }
+        
+    }
+</section>
+
+
+
+
+
+<div class="container mt-4" style="box-shadow: none;@(Cart.Count() > 0 ? "" : "display: none;");">
+    <button id="cartButton">
+        🛒 <span id="cartCount">@(Cart.Count() == 1 ? $"{Cart.Count()} Item": $"{Cart.Count()} Itens") </span>
+    </button>
+
+    <div id="cartDropdown">
+        <h5> Carrinho</h5>    
+        @if (Cart.Any())
+        {
+            @foreach (var item in Cart.ToList())
+            {
+                @if (item.Product is Combo combo)
+                {
+                    <div class="cart-item">
+
+                        <img src="@combo.Image" alt="Produto">
+                        <div class="cart-details" style="flex-basis: 1px;flex-grow: 2;">
+                            <strong>@combo.Name</strong>
+                            <ul class="list-unstyled">
+                                @foreach(var product in combo.Products)
+                                {
+                                    <li>- @product.Name</li>
+                                }
+                                @if (item.GetNote() != "")
+                                {
+                                    <li>- @item.GetNote()</li>
+                                }
+@*                                     <li>- Acompanhamento 1</li>
+                                <li>- Acompanhamento 2</li> *@
+                                <li>- R$@* @item.GetPrice().ToString("F2") *@
+                                        @((combo.Products.Sum(p=> p.Value)).ToString("F2"))
+                                </li >
+                            </ul>
+                        </div>
+                        <div class="quantity-controls">
+                            <button @onclick="()=>DecrementItem(item)">
+                                @if (item.Quantity > 1)
+                                {
+                                    <span>-</span>
+                                }
+                                else
+                                {
+                                    <svg style="width:12px;fill:white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M170.5 51.6L151.5 80l145 0-19-28.4c-1.5-2.2-4-3.6-6.7-3.6l-93.7 0c-2.7 0-5.2 1.3-6.7 3.6zm147-26.6L354.2 80 368 80l48 0 8 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-8 0 0 304c0 44.2-35.8 80-80 80l-224 0c-44.2 0-80-35.8-80-80l0-304-8 0c-13.3 0-24-10.7-24-24S10.7 80 24 80l8 0 48 0 13.8 0 36.7-55.1C140.9 9.4 158.4 0 177.1 0l93.7 0c18.7 0 36.2 9.4 46.6 24.9zM80 128l0 304c0 17.7 14.3 32 32 32l224 0c17.7 0 32-14.3 32-32l0-304L80 128zm80 64l0 208c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-208c0-8.8 7.2-16 16-16s16 7.2 16 16zm80 0l0 208c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-208c0-8.8 7.2-16 16-16s16 7.2 16 16zm80 0l0 208c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-208c0-8.8 7.2-16 16-16s16 7.2 16 16z" /></svg>
+                                }
+                            </button>
+                            <span>@item.Quantity</span>
+                            <button @onclick="()=>IncrementItem(item)">+</button>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="cart-item">
+                        <img src="@item.Product.Image" alt="Produto">
+                        <div class="cart-details">
+                            <strong>@item.Product.Name</strong>
+                            <ul class="list-unstyled ">
+                                <li>- @item.Product.Name</li>
+                                @if (item.GetNote() != "" && item.GetNote() != null)
+                                {
+                                    <li>- @item.GetNote()</li>
+                                }
+                                <li>- R$@item.GetPrice().ToString("F2")</li>
+                            </ul>
+                        </div>
+                        <div class="quantity-controls">
+                            <button @onclick="()=>DecrementItem(item)">@if (item.Quantity >1) {<span>-</span>
+                                }
+                                else
+                                {
+                                    <svg style="width:12px;fill:white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--!Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2025 Fonticons, Inc.--><path d="M170.5 51.6L151.5 80l145 0-19-28.4c-1.5-2.2-4-3.6-6.7-3.6l-93.7 0c-2.7 0-5.2 1.3-6.7 3.6zm147-26.6L354.2 80 368 80l48 0 8 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-8 0 0 304c0 44.2-35.8 80-80 80l-224 0c-44.2 0-80-35.8-80-80l0-304-8 0c-13.3 0-24-10.7-24-24S10.7 80 24 80l8 0 48 0 13.8 0 36.7-55.1C140.9 9.4 158.4 0 177.1 0l93.7 0c18.7 0 36.2 9.4 46.6 24.9zM80 128l0 304c0 17.7 14.3 32 32 32l224 0c17.7 0 32-14.3 32-32l0-304L80 128zm80 64l0 208c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-208c0-8.8 7.2-16 16-16s16 7.2 16 16zm80 0l0 208c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-208c0-8.8 7.2-16 16-16s16 7.2 16 16zm80 0l0 208c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-208c0-8.8 7.2-16 16-16s16 7.2 16 16z" /></svg>
+                                }
+                            </button>
+                            <span>@item.Quantity</span>
+                            <button @onclick="()=>IncrementItem(item)">+</button>
+                        </div>
+                    </div>
+                    
+                        
+                }
+
+            }
+            <div class="cart-footer">
+                <span>Total: R$@Cart.Sum(p => p.GetPrice()).ToString("F2") <span id="totalValue"></span></span>
+                <button @onclick="() => SubmitOrder(Cart)">Finalizar Compra</button>
+            </div>
+                
+              
+        }
+            
+        </div>
+  
+</div>
+ 
+@* <section id="summary">
+    <section id="order-summary" class="order-summary-section">
+        <h3>Resumo dos Pedidos</h3>
+        <div class="order-summary">
+            <p>Total dos Pedidos Realizados:</p>
+            <h4 class="order-total">R$ @totalGeral</h4>
+        </div>
+        <button class="btn-close-order" @onclick="CloseOrder">Fechar Comanda</button>
+    </section>
+</section> *@
+
+
+@if(OrdersInCheck.Select(x => x.Status == 3).Count() > 0)
+{
+    <button class="fixed-button" type="button" data-bs-toggle="collapse" data-bs-target="#pedidoMenu" aria-expanded="false" aria-controls="pedidoMenu">
+        <img src="/Images/orders/cooking.gif" alt="Pedidos">
+    </button>
+}
+
+
+
+<div class="menu-container">
+    <div class="collapse mt-3" id="pedidoMenu">
+        <div class="card card-body">
+            <div class="accordion" id="pedidosAccordion">
+                @foreach(var order in OrdersInCheck)
+                {
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#@("pedido"+order.Id)" aria-expanded="false">
+                                #@order.Id - @(order.Status == 1 ? "Enviado à cozinha" : (order.Status == 2 ? "Preparando" : "Pedido Pronto"))
+                            </button>
+                        </h2>
+                        <div id="@("pedido"+order.Id)" class="accordion-collapse collapse" data-bs-parent="#pedidosAccordion">
+                            <div class="accordion-body">
+                                <ul class="list-group">
+                                    @foreach (var product in order.Products)
+                                    {
+                                        <li class="list-group-item">
+                                            <div class="product-container">
+                                                <img src="@product.Image" alt="@product.Name">
+                                                <div>
+                                                    @product.Name
+                                                    <ul>
+                                                        @* //Não utilize GetPrice(), pois na OrderInCheck ele pega o valor pago *@
+                                                        <li>R$ @product.Value.ToString("F2")</li>
+                                                        @if(product.Note != null && product.Note != string.Empty)
+                                                        {
+                                                            <li>@product.Note</li>
+                                                        }
+                                                        
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </li>
+                                    }
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+            </div>
+        </div>
+    </div>
+</div>
+
+
+  
+
+
+<script>
+        window.scroll({
+        top: 0,
+        left: 0,
+        behavior: 'smooth',
+    });
+    document.getElementById("cartButton").addEventListener("click", function (event) {
+        event.stopPropagation();
+        let cartDropdown = document.getElementById("cartDropdown");
+        cartDropdown.style.display = cartDropdown.style.display === "block" ? "none" : "block";
+        cartDropdown.scrollTop = cartDropdown.scrollHeight;
+    });
+
+    document.addEventListener("click", function (event) {
+        let cartDropdown = document.getElementById("cartDropdown");
+        if (!document.getElementById("cartButton").contains(event.target) && !cartDropdown.contains(event.target)) {
+            cartDropdown.style.display = "none";
+        }
+    });
+
+    function increaseQuantity(button) {
+        let span = button.previousElementSibling;
+        span.textContent = parseInt(span.textContent) + 1;
+    }
+
+
+       document.addEventListener("DOMContentLoaded", function () {
+        document.querySelectorAll(".accordion-button").forEach(button => {
+            button.addEventListener("click", function () {
+                var targetId = this.getAttribute("data-bs-target");
+                var targetCollapse = document.querySelector(targetId);
+                var bsCollapse = bootstrap.Collapse.getOrCreateInstance(targetCollapse);
+
+                if (targetCollapse.classList.contains("show")) {
+                    bsCollapse.hide();
+                } else {
+                    bsCollapse.show();
+                }
+            });
+        });
+    });
+
+
+</script>
+
+@code{
+    private async Task SubmitOrder(List<ItemCart> itens)
+    {
+        await orderClient.SubmitOrder(itens, int.Parse(Comanda), Store.Id);
+
+        Cart.Clear();
+        //await SetSessionCart(Cart);
+        _cartService.ClearCart(cartToken);
+        nav.Refresh(true);
+
+    }
     async Task<List<Product>> GetProducts()
     {
         HttpResponseMessage response = _httpClient.GetAsync("Products").Result;
@@ -213,7 +582,7 @@
 
     public async Task<List<Order>> GetOrders()
     {
-        HttpResponseMessage response = _httpClient.GetAsync("GetOrdersInTable").Result;
+        HttpResponseMessage response = _httpClient.GetAsync($"GetOrdersInTable/{Comanda}").Result;
         var content = await response.Content.ReadAsStringAsync();
         var options = new JsonSerializerOptions
             {

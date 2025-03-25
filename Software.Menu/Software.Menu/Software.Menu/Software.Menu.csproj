@@ -7,13 +7,32 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Software.Menu.Client\Software.Menu.Client.csproj" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="8.0.4" />
-    <PackageReference Include="MySql.Data" Version="8.4.0" />
+    <Compile Remove="Components\Pages\NovaPasta\**" />
+    <Compile Remove="Controllers\**" />
+    <Content Remove="Components\Pages\NovaPasta\**" />
+    <Content Remove="Controllers\**" />
+    <EmbeddedResource Remove="Components\Pages\NovaPasta\**" />
+    <EmbeddedResource Remove="Controllers\**" />
+    <None Remove="Components\Pages\NovaPasta\**" />
+    <None Remove="Controllers\**" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Controllers\" />
+    <None Remove="Components\Pages\CloseTable.razor.css" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Components\Pages\CloseTable.razor.css" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="12.0.1" />
+    <PackageReference Include="Blazored.SessionStorage" Version="2.4.0" />
+    <ProjectReference Include="..\Software.Menu.Client\Software.Menu.Client.csproj" />
+    <PackageReference Include="mercadopago-sdk" Version="2.4.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="8.0.4" />
+    <PackageReference Include="MySql.Data" Version="8.4.0" />
+    <PackageReference Include="ProtectedBrowserStorage.NETStandard" Version="1.1.2" />
   </ItemGroup>
 
 </Project>

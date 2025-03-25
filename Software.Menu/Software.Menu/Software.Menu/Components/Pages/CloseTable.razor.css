@@ -1,0 +1,128 @@
+﻿body, html {
+    height: 100%;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #1c1f24; /* Fundo escuro elegante */
+}
+
+.page-order {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh; /* Garante o preenchimento total da altura da tela */
+}
+
+.order-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    padding: 30px;
+    width: 94%;
+    max-width: 600px;
+    border-radius: 41px;
+    background-color: #2b2f36;
+    color: #e0e0e0;
+    box-shadow: 0px 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+.input-group,
+.coupon-section,
+.total-section,
+.actions {
+    width: 100%;
+    max-width: 400px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.form-select {
+    width: 85%;
+    background-color: #444951;
+    color: #c7c7c7;
+    border: none;
+    padding: 10px;
+    border-radius: 5px;
+}
+
+.textInputWrapper {
+    position: relative;
+    width: 100%;
+}
+
+.textInput {
+    width: 100%;
+    padding: 12px;
+    border-radius: 8px;
+    border: none;
+    color: #222;
+    background-color: #e8e8e8;
+    font-size: 14px;
+}
+
+button,
+.finalize-btn {
+    padding: 12px 25px;
+    font-size: 14px;
+    font-weight: bold;
+    color: #fff;
+    background-color: #5cb85c;
+    border: none;
+    border-radius: 25px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+    button:hover,
+    .finalize-btn:hover {
+        background-color: #357abd;
+    }
+
+.card,
+.card_error {
+    display: none;
+    width: 80%;
+    max-width: 400px;
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+    background-color: #333;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+#show {
+    display: block;
+}
+
+.icon-container,
+.icon-container_error {
+    width: 50px;
+    height: 50px;
+    margin: 0 auto 10px;
+}
+
+.icon {
+    color: #4caf50;
+    font-size: 2.5em;
+}
+
+.icon_error {
+    color: #e74c3c;
+    font-size: 2.5em;
+}
+
+.message-text {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #4caf50;
+}
+
+.message-text_error {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #e74c3c;
+}
